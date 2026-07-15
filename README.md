@@ -27,9 +27,11 @@
 
 This repository documents the design and deployment of a **secure, layered, three-tier web application** on **Amazon Web Services**, built to reflect real-world production architecture patterns used by cloud teams at scale.
 
+The project has evolved from a single-instance proof of concept into a **production-inspired, highly available deployment**. The Web and Application tiers now run on **Auto Scaling Groups** distributed across **two Availability Zones**, fronted by external and internal Application Load Balancers, giving the architecture genuine fault tolerance instead of relying on a single point of failure per tier.
+
 The project separates concerns across a **Web Tier**, **Application Tier**, and **Database Tier**, each isolated within its own subnet and protected by dedicated security groups, load balancers, and IAM permissions — inspired by AWS Well-Architected best practices around **security, reliability, and cost optimization**.
 
-> 💡 **Design Note:** This deployment intentionally uses a single EC2 instance per tier to keep AWS costs low during the build phase. It reflects a deliberate cost-optimization decision made for a self-funded learning project rather than a constraint of the architecture itself.
+> 💡 **Design Note:** A single NAT Gateway and a single RDS instance are used intentionally to keep AWS costs low for a self-funded learning project, while Auto Scaling Groups on the Web and App tiers demonstrate high-availability patterns without over-provisioning compute.
 
 ---
 
@@ -40,13 +42,13 @@ The project separates concerns across a **Web Tier**, **Application Tier**, and 
   <em>🏗 Final Architecture Diagram</em>
 </p>
 
-The architecture is split into three isolated layers inside a custom **Amazon VPC**:
+The architecture is split into three isolated layers inside a custom **Amazon VPC**, each now deployed across **two Availability Zones** for high availability:
 
 | Tier | Subnet Type | Components |
 |------|-------------|------------|
-| 🌐 **Web Tier** | Public Subnet | EC2 (Nginx reverse proxy + React static build), External ALB |
-| ⚙️ **Application Tier** | Private Subnet | EC2 (Node.js + PM2), Internal ALB |
-| 🗄️ **Database Tier** | Private Subnet | Amazon RDS (MySQL) |
+| 🌐 **Web Tier** | Public Subnets (AZ-A, AZ-B) | Web Auto Scaling Group — EC2 (Nginx reverse proxy + React static build), Launch Template, External ALB |
+| ⚙️ **Application Tier** | Private Subnets (AZ-A, AZ-B) | App Auto Scaling Group — EC2 (Node.js + PM2), Launch Template, Internal ALB |
+| 🗄️ **Database Tier** | Private Subnets (AZ-A, AZ-B) | Amazon RDS (MySQL), DB Subnet Group across two AZs |
 
 **Traffic flow:**
 
@@ -57,19 +59,25 @@ Internet
 Internet Gateway
    │
    ▼
-External Application Load Balancer  (Public Subnet)
+External Application Load Balancer          (Public Subnets, AZ-A + AZ-B)
    │
+   ├──────────────────────┬──────────────────────┐
+   ▼                      ▼                      ▼
+Web ASG EC2 — AZ-A     Web ASG EC2 — AZ-B     (scales via Launch Template)
+(Nginx + React)        (Nginx + React)
+   │                      │
+   └──────────────────────┴──────────────────────┘
    ▼
-Web Tier EC2 — Nginx + React          (Public Subnet)
+Internal Application Load Balancer           (Private Subnets, AZ-A + AZ-B)
    │
+   ├──────────────────────┬──────────────────────┐
+   ▼                      ▼                      ▼
+App ASG EC2 — AZ-A     App ASG EC2 — AZ-B     (scales via Launch Template)
+(Node.js + PM2)        (Node.js + PM2)
+   │                      │
+   └──────────────────────┴──────────────────────┘
    ▼
-Internal Application Load Balancer  (Private Subnet)
-   │
-   ▼
-Application Tier EC2 — Node.js + PM2 (Private Subnet)
-   │
-   ▼
-Amazon RDS (MySQL)                    (Private Subnet)
+Amazon RDS (MySQL)                    (DB Subnet Group, Private Subnets AZ-A + AZ-B)
 ```
 
 Outbound internet access for private-subnet resources (patching, package installs) is handled via a **NAT Gateway**, keeping the App and DB tiers fully unreachable from the public internet.
@@ -82,16 +90,16 @@ Outbound internet access for private-subnet resources (patching, package install
 sequenceDiagram
     participant U as 🌍 User
     participant EALB as External ALB
-    participant WEB as Web Tier EC2<br/>(Nginx + React)
+    participant WEB as Web ASG Instance<br/>(Nginx + React)
     participant IALB as Internal ALB
-    participant APP as App Tier EC2<br/>(Node.js + PM2)
+    participant APP as App ASG Instance<br/>(Node.js + PM2)
     participant DB as Amazon RDS<br/>(MySQL)
 
     U->>EALB: HTTP Request
-    EALB->>WEB: Forward to healthy target
+    EALB->>WEB: Forward to healthy target (AZ-A or AZ-B)
     WEB->>WEB: Serve React static build
     WEB->>IALB: API request via reverse proxy
-    IALB->>APP: Forward to healthy target
+    IALB->>APP: Forward to healthy target (AZ-A or AZ-B)
     APP->>DB: Query / Transaction
     DB-->>APP: Result Set
     APP-->>IALB: JSON Response
@@ -99,6 +107,8 @@ sequenceDiagram
     WEB-->>EALB: Render Response
     EALB-->>U: Final Rendered Page
 ```
+
+**Architecture flow:** Internet → Internet Gateway → External ALB → Web Auto Scaling Group → Internal ALB → App Auto Scaling Group → Amazon RDS
 
 ---
 
@@ -108,8 +118,8 @@ sequenceDiagram
 
 | Category | Services / Tools |
 |---|---|
-| **Networking** | Amazon VPC, Public & Private Subnets, Internet Gateway, NAT Gateway, Route Tables, Security Groups |
-| **Compute** | Amazon EC2 (Web Tier + App Tier) |
+| **Networking** | Amazon VPC, Public & Private Subnets (Multi-AZ), Internet Gateway, NAT Gateway, Route Tables, Security Groups |
+| **Compute** | Amazon EC2 (Web Tier + App Tier), Auto Scaling Groups (Web & App), Launch Templates (Web & App) |
 | **Load Balancing** | Application Load Balancer (External), Application Load Balancer (Internal), Target Groups |
 | **Database** | Amazon RDS (MySQL) |
 | **Storage** | Amazon S3 |
@@ -136,6 +146,12 @@ sequenceDiagram
 - 🟢 **Node.js Backend** — REST API layer connecting to RDS
 - 🪪 **IAM Roles** — scoped, least-privilege access instead of hardcoded credentials
 - 🏭 **Production-Inspired Deployment** — architecture mirrors patterns used in real enterprise cloud environments
+- 🟢 **High Availability** — Web and App tiers deployed redundantly across two Availability Zones
+- 🛡️ **Fault Tolerance** — automatic detection and replacement of unhealthy instances
+- 📈 **Auto Scaling** — Web and App Auto Scaling Groups adjust capacity based on demand
+- 📋 **Launch Templates** — standardized, version-controlled instance configuration for both tiers
+- 🗺️ **Multi-AZ Deployment** — compute and database resources span multiple Availability Zones
+- 🌉 **NAT Gateway** — enables secure outbound internet access for private-subnet resources
 
 ---
 
@@ -149,6 +165,36 @@ sequenceDiagram
 | **Internal ALB** | Application Tier is only reachable through the internal load balancer, never directly |
 | **No Public Database** | RDS MySQL sits in a private subnet with no public accessibility flag enabled |
 | **Least Privilege** | IAM policies and security group rules grant only the minimum access required per component |
+
+---
+
+## 🟢 High Availability
+
+The Web and Application tiers are deployed across **two Availability Zones** to eliminate single points of failure at the compute layer:
+
+- **Web Auto Scaling Group** — runs Web Tier EC2 instances (Nginx + React) in both AZ-A and AZ-B, registered behind the **External Application Load Balancer**
+- **App Auto Scaling Group** — runs Application Tier EC2 instances (Node.js + PM2) in both AZ-A and AZ-B, registered behind the **Internal Application Load Balancer**
+- **Launch Templates** — define a standardized, repeatable configuration (AMI, instance type, user data, security groups) for both the Web and App Auto Scaling Groups
+- **External ALB & Internal ALB** — continuously health-check registered targets and route traffic only to instances passing their health checks
+- **Automatic Instance Replacement** — if an instance in either Auto Scaling Group fails a health check, the ASG terminates it and launches a replacement from the Launch Template automatically, without manual intervention
+- **Multi-AZ Database** — Amazon RDS sits within a DB Subnet Group spanning both Availability Zones
+
+Together, these components mean the loss of a single instance — or an entire Availability Zone — does not take the application offline.
+
+---
+
+## 💰 Cost Optimization
+
+This project balances high-availability design patterns with responsible AWS spend, which matters for a self-funded learning deployment:
+
+- **Single NAT Gateway** — one NAT Gateway is used (rather than one per AZ) as a deliberate cost trade-off for a learning project, accepted as a minor availability compromise
+- **t3.micro Instances** — Web and App tier instances run on `t3.micro`, keeping compute costs minimal while still demonstrating Auto Scaling behavior
+- **Single RDS Instance** — one RDS (MySQL) instance is used rather than a Multi-AZ RDS deployment, to avoid duplicate database costs during learning and testing
+- **Auto Scaling for Demonstration** — ASGs are configured primarily to demonstrate scaling and self-healing behavior, not to handle large-scale production traffic
+- **AWS Free Tier Awareness** — instance types and usage were chosen with Free Tier eligibility in mind where possible
+- **Resource Cleanup** — EC2 instances, ALBs, NAT Gateways, and RDS instances are torn down after testing sessions to avoid ongoing charges
+
+> ⚠️ **Note:** This project does not guarantee Free Tier eligibility or zero cost — actual charges depend on usage, region, and how long resources remain running. Always verify current pricing and your own Free Tier usage in the AWS Billing Console.
 
 ---
 
@@ -236,21 +282,24 @@ sequenceDiagram
 - Systematic **troubleshooting** using logs, health checks, and security group audits
 - Practical application of **cloud security** fundamentals in a real deployment
 - Thinking in terms of **production-grade architecture**, not just "make it work" solutions
+- Configuring **Auto Scaling Groups** and **Launch Templates** for repeatable, self-healing compute
+- Designing for **high availability** and **fault tolerance** across multiple Availability Zones
+- Implementing **multi-AZ deployment** patterns for compute and database resources
+- Balancing architectural ambition with **cost optimization** in a self-funded environment
+- Reasoning about **infrastructure scalability** and where automation adds real value
 
 ---
 
 ## 🔮 Future Improvements
 
-- [ ] Implement **Auto Scaling Groups** for Web and App tiers
-- [ ] Add multiple EC2 instances per tier for high availability
 - [ ] Configure **Amazon Route 53** for custom domain routing
 - [ ] Enable **HTTPS** using AWS Certificate Manager (ACM)
-- [ ] Add **Amazon CloudWatch** for monitoring, logging, and alarms
 - [ ] Integrate **AWS WAF** for application-layer protection
+- [ ] Add **Amazon CloudWatch** for monitoring, logging, and alarms
 - [ ] Build a **CI/CD pipeline** using GitHub Actions
 - [ ] Migrate infrastructure provisioning to **Terraform** (Infrastructure as Code)
 - [ ] Containerize the application using **Docker**
-- [ ] Explore orchestration with **Amazon EKS**
+- [ ] Explore orchestration with **Amazon EKS** (Kubernetes)
 
 ---
 
@@ -276,7 +325,14 @@ aws-3-tier-web-application/
     ├── 13-external-alb.png
     ├── 14-target-groups.png
     ├── 15-application-working.png
-    └── 16-architecture-diagram.png
+    ├── 16-architecture-diagram.png
+    ├── 19-web-auto-scaling-group.png
+    ├── 20-app-auto-scaling-group.png
+    ├── 21-auto-scaling-instances.png
+    ├── 22-launch-template-web.png
+    ├── 23-launch-template-app.png
+    ├── 24-resource-map-with-asg.png
+    └── 25-nat-gateway.png
 ```
 
 ---
@@ -290,6 +346,9 @@ aws-3-tier-web-application/
 | ![IAM Role](screenshots/07-iam-role.png) **👤 IAM Role** | ![RDS Instance](screenshots/08-rds-instance.png) **🗄 Amazon RDS Instance** | ![RDS Database](screenshots/09-rds-database.png) **💾 MySQL Database** |
 | ![App Tier EC2](screenshots/10-app-tier-ec2.png) **🖥 Application Tier EC2** | ![Web Tier EC2](screenshots/11-web-tier-ec2.png) **🌍 Web Tier EC2** | ![Internal ALB](screenshots/12-internal-alb.png) **⚖ Internal Load Balancer** |
 | ![External ALB](screenshots/13-external-alb.png) **🌐 External Load Balancer** | ![Target Groups](screenshots/14-target-groups.png) **🎯 Target Groups** | ![Application Working](screenshots/15-application-working.png) **🚀 Running Application** |
+| ![Web Auto Scaling Group](screenshots/19-web-auto-scaling-group.png) **📈 Web Auto Scaling Group** | ![App Auto Scaling Group](screenshots/20-app-auto-scaling-group.png) **📈 App Auto Scaling Group** | ![Auto Scaling Instances](screenshots/21-auto-scaling-instances.png) **🖥 Auto Scaling Instances** |
+| ![Launch Template Web](screenshots/22-launch-template-web.png) **📋 Launch Template — Web** | ![Launch Template App](screenshots/23-launch-template-app.png) **📋 Launch Template — App** | ![Resource Map with ASG](screenshots/24-resource-map-with-asg.png) **🗺 Resource Map with ASG** |
+| ![NAT Gateway](screenshots/25-nat-gateway.png) **🌉 NAT Gateway** | | |
 
 > 📌 Replace the images above with your actual exported screenshots — all filenames already match the `screenshots/` folder structure listed in this repo.
 
