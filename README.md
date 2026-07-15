@@ -38,7 +38,7 @@ The project separates concerns across a **Web Tier**, **Application Tier**, and 
 ## 🏗️ Architecture Diagram
 
 <p align="center">
-  <img src="screenshots/16-architecture-diagram.png" alt="AWS 3-Tier Architecture Diagram" width="850"><br>
+  <img src="screenshots/18-architecture-diagram.png" alt="AWS 3-Tier Architecture Diagram" width="850"><br>
   <em>🏗 Final Architecture Diagram</em>
 </p>
 
@@ -196,6 +196,11 @@ This project balances high-availability design patterns with responsible AWS spe
 
 > ⚠️ **Note:** This project does not guarantee Free Tier eligibility or zero cost — actual charges depend on usage, region, and how long resources remain running. Always verify current pricing and your own Free Tier usage in the AWS Billing Console.
 
+<p align="center">
+  <img src="screenshots/25-cost-and-usage-dashboard.png" alt="Cost and Usage Dashboard" width="420">
+  <img src="screenshots/26-free-tier-billing-summary.png" alt="Free Tier Billing Summary" width="420">
+</p>
+
 ---
 
 ## 🚀 Deployment Guide
@@ -308,7 +313,9 @@ This project balances high-availability design patterns with responsible AWS spe
 ```
 aws-3-tier-web-application/
 ├── README.md
+├── DEPLOYMENT_GUIDE.md
 ├── LICENSE
+├── application-code/
 └── screenshots/
     ├── 01-vpc-resource-map.png
     ├── 02-subnets.png
@@ -324,16 +331,21 @@ aws-3-tier-web-application/
     ├── 12-internal-alb.png
     ├── 13-external-alb.png
     ├── 14-target-groups.png
-    ├── 15-application-working.png
-    ├── 16-architecture-diagram.png
+    ├── 15-rds-connection.png
+    ├── 16-database-operations.png
+    ├── 17-application-working.png
+    ├── 18-architecture-diagram.png
     ├── 19-web-auto-scaling-group.png
     ├── 20-app-auto-scaling-group.png
     ├── 21-auto-scaling-instances.png
     ├── 22-launch-template-web.png
     ├── 23-launch-template-app.png
-    ├── 24-resource-map-with-asg.png
-    └── 25-nat-gateway.png
+    ├── 24-nat-gateway.png
+    ├── 25-cost-and-usage-dashboard.png
+    └── 26-free-tier-billing-summary.png
 ```
+
+> 📁 `application-code/` holds the Web Tier and Application Tier source (React frontend + Node.js backend). `DEPLOYMENT_GUIDE.md` contains the full step-by-step deployment walkthrough referenced in the [Deployment Guide](#-deployment-guide) section below.
 
 ---
 
@@ -345,10 +357,11 @@ aws-3-tier-web-application/
 | ![Route Tables](screenshots/04-route-tables.png) **🛣 Route Tables** | ![Security Groups](screenshots/05-security-groups.png) **🔒 Security Groups** | ![S3 Bucket](screenshots/06-s3-bucket.png) **🪣 Amazon S3 Bucket** |
 | ![IAM Role](screenshots/07-iam-role.png) **👤 IAM Role** | ![RDS Instance](screenshots/08-rds-instance.png) **🗄 Amazon RDS Instance** | ![RDS Database](screenshots/09-rds-database.png) **💾 MySQL Database** |
 | ![App Tier EC2](screenshots/10-app-tier-ec2.png) **🖥 Application Tier EC2** | ![Web Tier EC2](screenshots/11-web-tier-ec2.png) **🌍 Web Tier EC2** | ![Internal ALB](screenshots/12-internal-alb.png) **⚖ Internal Load Balancer** |
-| ![External ALB](screenshots/13-external-alb.png) **🌐 External Load Balancer** | ![Target Groups](screenshots/14-target-groups.png) **🎯 Target Groups** | ![Application Working](screenshots/15-application-working.png) **🚀 Running Application** |
+| ![External ALB](screenshots/13-external-alb.png) **🌐 External Load Balancer** | ![Target Groups](screenshots/14-target-groups.png) **🎯 Target Groups** | ![RDS Connection](screenshots/15-rds-connection.png) **🔌 RDS Connection** |
+| ![Database Operations](screenshots/16-database-operations.png) **🗃 Database Operations** | ![Application Working](screenshots/17-application-working.png) **🚀 Running Application** | ![Architecture Diagram](screenshots/18-architecture-diagram.png) **🏗 Final Architecture Diagram** |
 | ![Web Auto Scaling Group](screenshots/19-web-auto-scaling-group.png) **📈 Web Auto Scaling Group** | ![App Auto Scaling Group](screenshots/20-app-auto-scaling-group.png) **📈 App Auto Scaling Group** | ![Auto Scaling Instances](screenshots/21-auto-scaling-instances.png) **🖥 Auto Scaling Instances** |
-| ![Launch Template Web](screenshots/22-launch-template-web.png) **📋 Launch Template — Web** | ![Launch Template App](screenshots/23-launch-template-app.png) **📋 Launch Template — App** | ![Resource Map with ASG](screenshots/24-resource-map-with-asg.png) **🗺 Resource Map with ASG** |
-| ![NAT Gateway](screenshots/25-nat-gateway.png) **🌉 NAT Gateway** | | |
+| ![Launch Template Web](screenshots/22-launch-template-web.png) **📋 Launch Template — Web** | ![Launch Template App](screenshots/23-launch-template-app.png) **📋 Launch Template — App** | ![NAT Gateway](screenshots/24-nat-gateway.png) **🌉 NAT Gateway** |
+| ![Cost and Usage Dashboard](screenshots/25-cost-and-usage-dashboard.png) **💵 Cost & Usage Dashboard** | ![Free Tier Billing Summary](screenshots/26-free-tier-billing-summary.png) **🧾 Free Tier Billing Summary** | |
 
 > 📌 Replace the images above with your actual exported screenshots — all filenames already match the `screenshots/` folder structure listed in this repo.
 
